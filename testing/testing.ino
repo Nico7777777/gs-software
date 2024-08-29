@@ -6,12 +6,12 @@ uint8_t RSSI = 30, nr_sat = 5;
 String timestamp = "000:000";
 
 uint8_t latitude = 34, longitude = 25;
-bool urca = true;
+bool urca = false, s = false, a = true;
 
-uint8_t temp = 70;
-uint16_t alt = 0;
+int16_t temp = 15;
+uint32_t pressure = 101325;
 float acc[3] = {34.5, 36.7, 17.9}, gyro[3] = {20.5, 42.4, 39.7};
-
+int32_t alt = 0;
 /*Format pachet (temporar):
 1. RSSI
 2. NR SATT
@@ -19,7 +19,7 @@ float acc[3] = {34.5, 36.7, 17.9}, gyro[3] = {20.5, 42.4, 39.7};
 4. LAT -> 
 5. LONG ->
 6. TEMP -> xx C
-7. ALT -> xxxxx m -> 
+7. PRESSURE -> xxxxx m -> 
 8. ACCEL (X,Y,Z)
 9. GYRO (X,Y,Z)
 
@@ -68,10 +68,12 @@ void modifyTimestamp() {
 //  Serial.println("secunde: " + String(sec) + " si milisecunde: " + String(milisec));
 }
 void modifyTemp() {
-  int8_t noise = random(12, 28);
-  int8_t sign = random(100);
-  temp = sign % 2 ? temp - noise : temp + noise;
-  temp = min(max(55, temp), 112);
+  uint8_t noise = random(2, 4);
+  if ( temp < -46)
+    s = true;
+  
+  temp = s ? (temp + noise) : (temp - noise);
+  temp = min(max(-50, temp), 100);
 }
 void modifyLat() {
   int8_t noise = random(7);
@@ -88,32 +90,41 @@ void modifyLong() {
 //  longitude = sign % 2 ? longitude + noise : longitude - noise;
 //  longitude = max(5, min(longitude, 75)); // limita - [5, 75]
 }
-void modifyAlt() {
-  int8_t noise = random(180, 240);
-  if (alt > 9700)
-    urca = false;
-
-  alt = urca ? alt + noise : alt - noise; 
+void modifyPressure() {
+  uint16_t noise = random(250, 400);
+  if (pressure < 30000)
+    urca = true;
+  
+  pressure = (urca) ? (pressure + noise) : (pressure - noise); 
+  pressure = min(max(30000, pressure), 101325);
 }
 void modifyAccel() {
   f(i, 3) {
-    int8_t nr = random(1300, 2000), sign = random(100);
-    float noise = (float)nr / 1000;
-    acc[i] = sign % 2 ? acc[i] + noise : acc[i] - noise;
+    int8_t sign = random(100);
+    float noise = (float)random(1300, 2500) / 1000;
+    acc[i] = (sign % 2) ? (acc[i] + noise) : (acc[i] - noise);
     acc[i] = min(max(17.5, acc[i]), 50.5);
   }
+//  Serial.print("Avem acc[0]: ");
+//  Serial.println(acc[0]);
 }
 void modifyGyro() {
   f(i, 3) {
-    int8_t nr = random(1300, 2000), sign = random(100);
-    float noise = (float)nr / 1000;
-    gyro[i] = sign % 2 ? gyro[i] + noise : gyro[i] - noise;
+    int8_t sign = random(100);
+    float noise = (float)random(1300, 2500) / 1000;
+    gyro[i] = (sign % 2) ? (gyro[i] + noise) : (gyro[i] - noise);
     gyro[i] = min(max(-50.5, gyro[i]), 50.5);
   }
 }
+void modifyAlt() {
+  if (alt > 9400)
+    a = false;
+  uint8_t noise = random(250, 280);
+  alt = (a) ? (alt + noise) : (alt - noise);
+}
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   tZero = millis();
 }
 // basic communication
@@ -137,24 +148,25 @@ String compunere_mesaj() {
   mesaj += String(nr_sat) + '|';
   mesaj += timestamp + '|';
   mesaj += String(latitude) + '|' + String(longitude) + '|';
-  if (temp < 10)
-    mesaj += "00" + String(temp) + '|';
-  else if (temp < 100)
-    mesaj += "0" + String(temp) + '|';
-  else
+//  if (temp < 10)
+//    mesaj += "00" + String(temp) + '|';
+//  else if (temp < 100)
+//    mesaj += "0" + String(temp) + '|';
+//  else
     mesaj += String(temp) + '|';
 
-  if (alt < 10)
-    mesaj += "000" + String(alt) + '|';
-  else if (alt < 100)
-    mesaj += "00" + String(alt) + '|';
-  else if (alt < 1000)
-    mesaj += "0" + String(alt) + '|';
+  if (pressure < 10)
+    mesaj += "000" + String(pressure) + '|';
+  else if (pressure < 100)
+    mesaj += "00" + String(pressure) + '|';
+  else if (pressure < 1000)
+    mesaj += "0" + String(pressure) + '|';
   else
-    mesaj += String(alt) + '|';
+    mesaj += String(pressure) + '|';
 
   mesaj += String(acc[0]) + ',' + String(acc[1]) + ',' + String(acc[2]) + '|';
   mesaj += String(gyro[0]) + ',' + String(gyro[1]) + ',' + String(gyro[2]);
+  mesaj += '|' + String(alt);
   return mesaj;
 }
 void test2() {
@@ -172,9 +184,10 @@ void test2() {
     modifyLat();
     modifyLong();
     modifyTemp();
-    modifyAlt();
+    modifyPressure();
     modifyAccel();
     modifyGyro();
+    modifyAlt();
   }
 
 }
